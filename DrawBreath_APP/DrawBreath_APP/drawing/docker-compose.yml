@@ -1,0 +1,55 @@
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: drawing_tasks
+      POSTGRES_USER: task_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local-task-password}
+    volumes:
+      - drawing_database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U task_user -d drawing_tasks"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  application:
+    build:
+      context: .
+      args:
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      PORT: 3300
+      PGHOST: database
+      PGPORT: 5432
+      PGDATABASE: drawing_tasks
+      PGUSER: task_user
+      PGPASSWORD: ${DB_PASSWORD:-local-task-password}
+      PGSCHEMA: task_platform
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      TEACHER_USERNAME: ${TEACHER_USERNAME:-teacher}
+      TEACHER_PASSWORD: ${TEACHER_PASSWORD:-change-me}
+      TEACHER_DISPLAY_NAME: ${TEACHER_DISPLAY_NAME:-Teacher}
+      APP_DISPLAY_NAME: ${APP_DISPLAY_NAME:-DrawBreath}
+      APP_HOME_URL: ${APP_HOME_URL:-http://localhost:3100}
+      APP_BASE_PATH: ${APP_BASE_PATH:-}
+      UPLOAD_DIR: /app/storage/uploads
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.5}
+    ports:
+      - "3300:3300"
+    volumes:
+      - drawing_uploads:/app/storage/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3300/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+volumes:
+  drawing_database:
+  drawing_uploads:
